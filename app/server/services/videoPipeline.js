@@ -8,6 +8,8 @@ import { buildVerticalVideo } from '../video/videoBuilder.js';
 import { applyScrollStopper } from '../video/scrollStopper.js';
 import { getStylePreset } from '../video/stylePresets.js';
 import { Video } from '../models/Video.js';
+import { User } from '../models/User.js';
+import { resolveBrandRenderOptions } from '../branding/styleIdentity.js';
 import { incrementUsage } from './usage.js';
 import { afterVideoPipelineAnalytics } from '../analytics/performanceTracker.js';
 import { pipelineLog } from './pipelineLog.js';
@@ -54,6 +56,8 @@ export async function runVideoPipeline(opts) {
   const optimizeFromVideoId = opts.optimizeFromVideoId ?? null;
 
   const preset = getStylePreset(opts.stylePreset || video.stylePreset);
+  const user = await User.findById(userId).lean();
+  const brand = resolveBrandRenderOptions(user?.brandIdentity, preset);
 
   video.status = 'script';
   video.errorMessage = null;
@@ -67,12 +71,21 @@ export async function runVideoPipeline(opts) {
     stylePreset: preset.id,
   });
 
-  const script = await generateScript(video.niche, topic || '', {
+  let script = await generateScript(video.niche, topic || '', {
     userId,
     optimizeFromVideoId,
     useOptimizedHook,
     autoTrendTopic,
   });
+
+  if (video.abPreserveScript && video.hook && video.body) {
+    script = {
+      hook: video.hook,
+      body: video.body,
+      ending: video.ending,
+      resolvedTopic: script.resolvedTopic,
+    };
+  }
 
   if (autoTrendTopic && script.resolvedTopic) {
     video.topic = script.resolvedTopic;
@@ -110,11 +123,18 @@ export async function runVideoPipeline(opts) {
   if (audioDur < 1) audioDur = 45;
 
   pipelineLog(videoId, 'subtitles', 'start');
+  const endingForSubs = brand.outroSignature
+    ? `${video.ending}\n${brand.outroSignature}`
+    : video.ending;
   const subPath = await buildSubtitlesFromScript(
-    { hook: video.hook, body: video.body, ending: video.ending },
+    { hook: video.hook, body: video.body, ending: endingForSubs },
     Math.max(audioDur, 8),
     String(video.id),
-    { style: preset.captionStyle, colorTone: preset.colorTone || 'neutral' }
+    {
+      style: brand.captionStyle,
+      colorTone: brand.captionColorTheme,
+      assFont: brand.assFont,
+    }
   );
   video.subtitlesPath = subPath;
   await video.save();
@@ -134,9 +154,9 @@ export async function runVideoPipeline(opts) {
     audioPath,
     subtitlesPath: subPath,
     outputBasename: `${String(video.id)}_body`,
-    rhythm: preset.rhythm,
-    maxSceneSec: preset.maxSceneSec,
-    zoomBoost: preset.zoomBoost,
+    rhythm: brand.rhythm,
+    maxSceneSec: brand.maxSceneSec,
+    zoomBoost: brand.zoomBoost,
   });
 
   if (preset.music) {
@@ -157,7 +177,8 @@ export async function runVideoPipeline(opts) {
         baseName: String(video.id),
         hookText: video.hook,
         durationSec: 0.9,
-        colorTone: preset.colorTone || 'neutral',
+        colorTone: brand.introColorTone || brand.captionColorTheme || 'neutral',
+        introStyle: brand.introStyle,
       },
       builtPath,
       finalOutPath

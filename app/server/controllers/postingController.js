@@ -1,24 +1,32 @@
 import { Video } from '../models/Video.js';
 import { scheduleOrUpload } from '../posting/autoPoster.js';
+import { buildPlatformCaption, getPlatformFormat } from '../posting/platformStrategy.js';
+import { nextSuggestedPostSlot } from '../posting/smartScheduler.js';
 
 export async function postSchedule(req, res) {
   try {
-    const { videoId, platforms = [], scheduledAt } = req.body;
+    const { videoId, platforms = [], scheduledAt, useSmartSchedule } = req.body;
     const video = await Video.findOne({ _id: videoId, userId: req.user.id });
     if (!video) return res.status(404).json({ error: 'Video not found' });
     if (video.status !== 'ready' || !video.outputPath) {
       return res.status(400).json({ error: 'Video is not ready for posting' });
     }
 
-    const when = scheduledAt ? new Date(scheduledAt) : null;
+    let when = scheduledAt ? new Date(scheduledAt) : null;
+    if (!when && useSmartSchedule) {
+      when = await nextSuggestedPostSlot(req.user.id);
+    }
+
     const results = [];
     for (const platform of platforms) {
+      const caption = buildPlatformCaption(video, platform);
       const r = await scheduleOrUpload({
         platform,
         videoPath: video.outputPath,
-        caption: [video.hook, video.topic].filter(Boolean).join(' — '),
+        caption,
         scheduleAt: when,
         userId: req.user.id,
+        format: getPlatformFormat(platform),
       });
       results.push(r);
     }

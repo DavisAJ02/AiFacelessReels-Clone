@@ -13,6 +13,8 @@ import { postRepostOne, postRepostSweep } from '../controllers/repostController.
 import { getAnalytics, patchAnalytics, getTrends } from '../controllers/analyticsController.js';
 import { createCheckoutSession, stripeWebhook } from '../controllers/stripeController.js';
 import { getStylePresets } from '../controllers/stylePresetController.js';
+import { getGrowthInsights, patchBrandIdentity } from '../controllers/growthController.js';
+import { postAbCreate, postAbEvaluate } from '../controllers/abController.js';
 import { User } from '../models/User.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,8 +56,16 @@ export function createRouter() {
       plan: user.plan,
       subscriptionStatus: user.subscriptionStatus,
       videosGeneratedThisPeriod: user.videosGeneratedThisPeriod,
+      brandIdentity: user.brandIdentity || {},
     });
   });
+
+  router.patch('/me/brand', requireAuth, patchBrandIdentity);
+
+  router.get('/growth/insights', requireAuth, getGrowthInsights);
+
+  router.post('/ab/create', requireAuth, postAbCreate);
+  router.post('/ab/evaluate', requireAuth, postAbEvaluate);
 
   router.post('/script', requireAuth, postScript);
   router.post('/voice', requireAuth, postVoice);

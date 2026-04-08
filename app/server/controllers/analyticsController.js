@@ -6,6 +6,7 @@ import {
   getBestPerformingForUser,
 } from '../analytics/performanceTracker.js';
 import { suggestTrendingTopics, extractTrendingKeywords } from '../trend/trendAnalyzer.js';
+import { evaluateAbExperiment } from '../analytics/abTesting.js';
 
 export async function getAnalytics(req, res) {
   try {
@@ -45,7 +46,17 @@ export async function patchAnalytics(req, res) {
       videoStyle,
       captionEngagementScore,
     });
-    return res.json(row);
+
+    const plain = typeof row.toObject === 'function' ? row.toObject() : row;
+    const vid = await Video.findById(videoId).select('abExperimentId').lean();
+    if (vid?.abExperimentId) {
+      const exp = await evaluateAbExperiment(vid.abExperimentId, req.user.id).catch(() => null);
+      if (exp?.decided) {
+        return res.json({ ...plain, abEvaluation: exp });
+      }
+    }
+
+    return res.json(plain);
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

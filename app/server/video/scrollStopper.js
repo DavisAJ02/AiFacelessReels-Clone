@@ -97,6 +97,12 @@ const INTRO_PALETTES = {
     text: 'white',
     border: 'black',
   },
+  brand_bar: {
+    bg: '#0d0d12',
+    box: '#D4AF37',
+    text: 'white',
+    border: '#1a1a22',
+  },
 };
 
 /**
@@ -116,7 +122,13 @@ export async function buildScrollStopIntro(opts) {
   const fontfile = await resolveFontfile();
   const fontPart = fontfile ? `fontfile=${fontfile}:` : '';
 
-  const pal = INTRO_PALETTES[opts.colorTone] || INTRO_PALETTES.neutral;
+  const palKey =
+    opts.introStyle === 'brand_bar'
+      ? 'brand_bar'
+      : opts.colorTone && INTRO_PALETTES[opts.colorTone]
+        ? opts.colorTone
+        : 'neutral';
+  const pal = INTRO_PALETTES[palKey] || INTRO_PALETTES.neutral;
 
   const draw = [
     `${fontPart}text='${text}'`,

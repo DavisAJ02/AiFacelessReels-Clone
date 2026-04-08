@@ -13,6 +13,14 @@ const userSchema = new mongoose.Schema(
     subscriptionStatus: { type: String, default: null },
     videosGeneratedThisPeriod: { type: Number, default: 0 },
     usagePeriodStart: { type: Date, default: Date.now },
+    brandIdentity: {
+      fontStyle: { type: String, default: 'sans_bold' },
+      captionColorTheme: { type: String, default: null },
+      introStyle: { type: String, default: 'default' },
+      outroSignature: { type: String, default: '' },
+      zoomBias: { type: Number, default: 0 },
+      maxSceneBias: { type: Number, default: 0 },
+    },
   },
   { timestamps: true }
 );

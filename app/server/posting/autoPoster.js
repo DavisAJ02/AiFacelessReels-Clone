@@ -127,7 +127,7 @@ const PLATFORM_FN = {
  * @param {string} [opts.userId] - for TikTok account rotation
  */
 export async function scheduleOrUpload(opts) {
-  const { platform, videoPath, caption = '', scheduleAt, userId } = opts;
+  const { platform, videoPath, caption = '', scheduleAt, userId, format } = opts;
   const fn = PLATFORM_FN[platform];
   if (!fn) {
     return { ok: false, simulated: true, platform, message: 'Unknown platform', videoPath, caption };
@@ -139,6 +139,7 @@ export async function scheduleOrUpload(opts) {
     ...result,
     platform,
     scheduledFor: scheduleAt || null,
+    formatHint: format || null,
   };
 }
 

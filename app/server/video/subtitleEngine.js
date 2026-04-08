@@ -121,7 +121,7 @@ function escapeAssWord(w) {
  * @param {{ hook: string, body: string, ending: string }} scriptParts
  * @param {number} totalDurationSec
  * @param {string} basename
- * @param {{ style?: string, colorTone?: string }} [options] - v2_pop enables word timing + highlights; colorTone warm|cool|neutral
+ * @param {{ style?: string, colorTone?: string, assFont?: string }} [options] - v2_pop enables word timing + highlights; colorTone warm|cool|neutral
  * @returns {Promise<string>} path to .ass file
  */
 export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, basename, options = {}) {
@@ -134,6 +134,7 @@ export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, ba
 
   const style = options.style || 'v2_pop';
   const colorTone = options.colorTone || 'neutral';
+  const assFont = options.assFont || 'Arial';
   const theme = getCaptionTheme(colorTone);
   const useV2 = style === 'v2_pop';
   const useMinimal = style === 'minimal';
@@ -169,7 +170,7 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,${
+Style: Default,${assFont},${
     useMinimal ? 56 : 64
   },${assColor(theme.primary)},&H000000FF,&H00000000,&H80000000,${useMinimal ? 0 : -1},0,0,0,100,100,0,0,1,${
     useMinimal ? 3 : 5

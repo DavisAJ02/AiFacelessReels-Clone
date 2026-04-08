@@ -49,6 +49,9 @@ const videoSchema = new mongoose.Schema(
     scrollStopperSfx: { type: String, default: null },
     lastRepostAt: { type: Date, default: null },
     repostCount: { type: Number, default: 0 },
+    abLabel: { type: String, default: null },
+    abPreserveScript: { type: Boolean, default: false },
+    abExperimentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AbExperiment', default: null },
   },
   { timestamps: true }
 );
