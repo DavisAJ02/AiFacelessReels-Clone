@@ -41,16 +41,39 @@ function assColor(hex6) {
   return `&H${((b << 16) | (g << 8) | r).toString(16).padStart(6, '0').toUpperCase()}&`;
 }
 
+const CAPTION_THEMES = {
+  warm: {
+    primary: 'FFF5E6',
+    accent: 'FF9E44',
+    pop: 'FFD54F',
+  },
+  cool: {
+    primary: 'E8F4FF',
+    accent: '7EC8E3',
+    pop: 'B388FF',
+  },
+  neutral: {
+    primary: 'FFFFFF',
+    accent: 'FFCC00',
+    pop: 'FFCC00',
+  },
+};
+
+function getCaptionTheme(colorTone) {
+  return CAPTION_THEMES[colorTone] || CAPTION_THEMES.neutral;
+}
+
 /**
  * Word-level ASS with optional keyword pop (size + color).
  */
-function wordLevelEvents(words, totalDurationSec) {
+function wordLevelEvents(words, totalDurationSec, colorTone = 'neutral') {
+  const theme = getCaptionTheme(colorTone);
   if (!words.length) {
     return [
       {
         start: 0,
         end: Math.max(totalDurationSec, 1),
-        text: '{\\fs64\\b1}Hermiora',
+        text: `{\\fs64\\b1\\c${assColor(getCaptionTheme(colorTone).primary)}}Hermiora`,
       },
     ];
   }
@@ -69,9 +92,11 @@ function wordLevelEvents(words, totalDurationSec) {
     const end = Math.min(totalDurationSec, start + dur);
 
     const pop = power
-      ? `{\\t(0,120,\\fscx118\\fscy118\\c${assColor('FFCC00')})}{\\t(120,280,\\fscx100\\fscy100\\c${assColor('FFFFFF')})}`
+      ? `{\\t(0,120,\\fscx118\\fscy118\\c${assColor(theme.pop)})}{\\t(120,280,\\fscx100\\fscy100\\c${assColor(theme.primary)})}`
       : '';
-    const size = power ? `{\\fs78\\b1}` : `{\\fs62\\b1}`;
+    const size = power
+      ? `{\\fs78\\b1\\c${assColor(theme.primary)}}`
+      : `{\\fs62\\b1\\c${assColor(theme.primary)}}`;
     const escaped = escapeAssWord(raw);
     events.push({
       start,
@@ -96,7 +121,7 @@ function escapeAssWord(w) {
  * @param {{ hook: string, body: string, ending: string }} scriptParts
  * @param {number} totalDurationSec
  * @param {string} basename
- * @param {{ style?: string }} [options] - v2_pop enables word timing + highlights
+ * @param {{ style?: string, colorTone?: string }} [options] - v2_pop enables word timing + highlights; colorTone warm|cool|neutral
  * @returns {Promise<string>} path to .ass file
  */
 export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, basename, options = {}) {
@@ -108,6 +133,8 @@ export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, ba
   const words = full.split(/\s+/).filter(Boolean);
 
   const style = options.style || 'v2_pop';
+  const colorTone = options.colorTone || 'neutral';
+  const theme = getCaptionTheme(colorTone);
   const useV2 = style === 'v2_pop';
   const useMinimal = style === 'minimal';
 
@@ -116,15 +143,15 @@ export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, ba
     chunks = legacyChunks(full, totalDurationSec).map((c) => ({
       start: c.start,
       end: c.end,
-      text: `{\\fs56\\b0}${escapeAssWord(c.text)}{\\r}`,
+      text: `{\\fs56\\b0\\c${assColor(theme.primary)}}${escapeAssWord(c.text)}{\\r}`,
     }));
   } else if (useV2) {
-    chunks = wordLevelEvents(words, totalDurationSec);
+    chunks = wordLevelEvents(words, totalDurationSec, colorTone);
   } else {
     chunks = legacyChunks(full, totalDurationSec).map((c) => ({
       start: c.start,
       end: c.end,
-      text: `{\\fs64\\b1}${escapeAssWord(c.text)}{\\r}`,
+      text: `{\\fs64\\b1\\c${assColor(theme.primary)}}${escapeAssWord(c.text)}{\\r}`,
     }));
   }
 
@@ -144,7 +171,7 @@ ScriptType: v4.00+
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,Arial,${
     useMinimal ? 56 : 64
-  },&H00FFFFFF,&H000000FF,&H00000000,&H80000000,${useMinimal ? 0 : -1},0,0,0,100,100,0,0,1,${
+  },${assColor(theme.primary)},&H000000FF,&H00000000,&H80000000,${useMinimal ? 0 : -1},0,0,0,100,100,0,0,1,${
     useMinimal ? 3 : 5
   },${useMinimal ? 2 : 3},5,40,40,120,1
 

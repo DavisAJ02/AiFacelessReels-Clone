@@ -78,12 +78,34 @@ async function resolveFontfile() {
   return null;
 }
 
+const INTRO_PALETTES = {
+  warm: {
+    bg: '#1a0f08',
+    box: '#C45C26',
+    text: 'white',
+    border: '#2d1810',
+  },
+  cool: {
+    bg: '#0a1218',
+    box: '#1E5A8C',
+    text: 'white',
+    border: '#0d1f2d',
+  },
+  neutral: {
+    bg: '#050508',
+    box: '#FF0066',
+    text: 'white',
+    border: 'black',
+  },
+};
+
 /**
  * High-contrast intro clip (video-only for reliable concat with any main audio).
  * @param {object} opts
  * @param {string} opts.hookText
  * @param {string} opts.outPath
  * @param {number} [opts.durationSec]
+ * @param {string} [opts.colorTone] - warm | cool | neutral
  */
 export async function buildScrollStopIntro(opts) {
   const durationSec = Math.min(1, Math.max(0.35, Number(opts.durationSec) || 0.85));
@@ -94,12 +116,14 @@ export async function buildScrollStopIntro(opts) {
   const fontfile = await resolveFontfile();
   const fontPart = fontfile ? `fontfile=${fontfile}:` : '';
 
+  const pal = INTRO_PALETTES[opts.colorTone] || INTRO_PALETTES.neutral;
+
   const draw = [
     `${fontPart}text='${text}'`,
-    'fontcolor=white',
+    `fontcolor=${pal.text}`,
     'fontsize=82',
     'borderw=6',
-    'bordercolor=black',
+    `bordercolor=${pal.border}`,
     'shadowx=4',
     'shadowy=4',
     'shadowcolor=black@0.85',
@@ -107,12 +131,12 @@ export async function buildScrollStopIntro(opts) {
     'y=(h-text_h)/2',
     'line_spacing=18',
     'box=1',
-    'boxcolor=#FF0066@0.93',
+    `boxcolor=${pal.box}@0.92`,
     'boxborderw=52',
   ].join(':');
 
   const vf = [
-    `color=c=#050508:s=1080x1920:d=${durationSec}`,
+    `color=c=${pal.bg}:s=1080x1920:d=${durationSec}`,
     `format=yuv420p,drawtext=${draw}`,
     `fade=t=in:st=0:d=0.06,fade=t=out:st=${(durationSec - 0.1).toFixed(3)}:d=0.1`,
   ].join(',');
@@ -275,6 +299,7 @@ export async function applyScrollStopper(opts, mainVideoPath, finalOutPath) {
       hookText: opts.hookText,
       outPath: introPath,
       durationSec: opts.durationSec ?? 0.85,
+      colorTone: opts.colorTone,
     });
 
     await prependIntroToMain(introPath, bodyPath, mergedPath, introDur, base);

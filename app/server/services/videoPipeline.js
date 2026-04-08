@@ -114,7 +114,7 @@ export async function runVideoPipeline(opts) {
     { hook: video.hook, body: video.body, ending: video.ending },
     Math.max(audioDur, 8),
     String(video.id),
-    { style: preset.captionStyle }
+    { style: preset.captionStyle, colorTone: preset.colorTone || 'neutral' }
   );
   video.subtitlesPath = subPath;
   await video.save();
@@ -139,8 +139,17 @@ export async function runVideoPipeline(opts) {
     zoomBoost: preset.zoomBoost,
   });
 
+  if (preset.music) {
+    pipelineLog(videoId, 'style', `music hint: ${preset.music} (mux when bed asset is configured)`);
+  }
+
   let out = builtPath;
-  const scrollOn = opts.scrollStopper !== undefined ? opts.scrollStopper : video.scrollStopper !== false;
+  const scrollOn =
+    opts.scrollStopper !== undefined
+      ? opts.scrollStopper
+      : preset.scrollStopper !== undefined
+        ? preset.scrollStopper
+        : video.scrollStopper !== false;
   if (scrollOn) {
     out = await applyScrollStopper(
       {
@@ -148,6 +157,7 @@ export async function runVideoPipeline(opts) {
         baseName: String(video.id),
         hookText: video.hook,
         durationSec: 0.9,
+        colorTone: preset.colorTone || 'neutral',
       },
       builtPath,
       finalOutPath

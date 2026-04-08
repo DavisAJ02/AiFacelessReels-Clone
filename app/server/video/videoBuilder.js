@@ -43,7 +43,7 @@ function buildZoomPanFilter(d, index, seed, motion = {}) {
   const zoomBoost = Number(motion.zoomBoost) || 0;
   const frames = Math.max(1, Math.round(Math.min(d, cap) * FPS));
   const rng = (Math.sin((index + 1) * 12.9898 + seed) + 1) / 2;
-  const zMax = 1.08 + rng * 0.12 + zoomBoost;
+  const zMax = Math.min(1.48, 1.08 + rng * 0.12 + zoomBoost);
   const zMin = 1;
   const zoomIn = index % 2 === 0;
   const zExpr = zoomIn
