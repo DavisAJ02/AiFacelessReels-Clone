@@ -19,7 +19,7 @@ const videoSchema = new mongoose.Schema(
     topic: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['draft', 'script', 'voice', 'images', 'rendering', 'ready', 'failed', 'posted'],
+      enum: ['draft', 'queued', 'script', 'voice', 'images', 'rendering', 'ready', 'failed', 'posted'],
       default: 'draft',
     },
     hook: { type: String, default: '' },
@@ -40,6 +40,10 @@ const videoSchema = new mongoose.Schema(
       youtube: String,
     },
     hookRegenerated: { type: Boolean, default: false },
+    useOptimizedHook: { type: Boolean, default: false },
+    autoTrendTopic: { type: Boolean, default: false },
+    selectedTopic: { type: String, default: '' },
+    jobId: { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -7,6 +7,10 @@ const analyticsSchema = new mongoose.Schema(
     views: { type: Number, default: 0 },
     watchTimeSeconds: { type: Number, default: 0 },
     completionRate: { type: Number, default: 0 },
+    hookType: { type: String, default: '' },
+    captionStyle: { type: String, default: 'v2_pop' },
+    videoStyle: { type: String, default: 'rhythm_v2' },
+    patternTier: { type: String, enum: ['high-performing', 'weak', 'neutral'], default: 'neutral' },
     lastSyncedAt: { type: Date, default: null },
   },
   { timestamps: true }

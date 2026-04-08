@@ -4,19 +4,30 @@ import { evaluateAndMaybeRegenerateHook } from '../trend/trendAnalyzer.js';
 
 export async function postScript(req, res) {
   try {
-    const { niche, topic, videoId, optimizeFromVideoId } = req.body;
+    const { niche, topic, videoId, optimizeFromVideoId, useOptimizedHook, autoTrendTopic } = req.body;
     const validNiches = ['motivation', 'bible_stories', 'horror_stories', 'facts'];
     if (!validNiches.includes(niche)) {
       return res.status(400).json({ error: 'Invalid niche' });
     }
 
     let regen = false;
+    let suggestedHook = null;
     if (optimizeFromVideoId) {
       const ev = await evaluateAndMaybeRegenerateHook(optimizeFromVideoId);
       regen = ev.regenerate;
+      suggestedHook = ev.suggestedHook;
     }
 
-    const script = await generateScript(niche, topic || '');
+    let script = await generateScript(niche, topic || '', {
+      userId: req.user.id,
+      optimizeFromVideoId,
+      useOptimizedHook: !!useOptimizedHook,
+      autoTrendTopic: !!autoTrendTopic,
+    });
+
+    if (regen && suggestedHook) {
+      script = { ...script, hook: suggestedHook };
+    }
 
     if (videoId) {
       const v = await Video.findOne({ _id: videoId, userId: req.user.id });

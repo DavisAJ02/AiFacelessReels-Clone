@@ -15,3 +15,5 @@ npm run dev
 - API: http://localhost:3000
 
 Requires **FFmpeg** on `PATH` for video output.
+
+Optional: set `REDIS_URL` (e.g. `redis://127.0.0.1:6379`) to process video generation in a **BullMQ** background queue (`docker compose up -d redis`).

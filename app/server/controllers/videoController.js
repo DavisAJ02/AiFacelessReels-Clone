@@ -1,12 +1,8 @@
-import path from 'path';
-import fs from 'fs/promises';
-import { generateScript } from '../ai/scriptGenerator.js';
-import { synthesizeVoice } from '../ai/voiceGenerator.js';
-import { generateScenes } from '../video/imageGenerator.js';
-import { buildSubtitlesFromScript } from '../video/subtitleEngine.js';
-import { buildVerticalVideo } from '../video/videoBuilder.js';
 import { Video } from '../models/Video.js';
-import { assertCanGenerateVideo, incrementUsage } from '../services/usage.js';
+import { assertCanGenerateVideo } from '../services/usage.js';
+import { runVideoPipeline } from '../services/videoPipeline.js';
+import { enqueueVideoGeneration, getVideoQueue, startVideoWorker } from '../queue/videoQueue.js';
+import { pipelineLog } from '../services/pipelineLog.js';
 
 export async function createVideoDraft(req, res) {
   try {
@@ -27,11 +23,40 @@ export async function createVideoDraft(req, res) {
   }
 }
 
+export async function getVideoJobStatus(req, res) {
+  try {
+    const { jobId } = req.params;
+    const queue = getVideoQueue();
+    if (!queue) {
+      return res.status(503).json({ error: 'Queue not configured' });
+    }
+    const job = await queue.getJob(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (job.data?.userId && job.data.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const state = await job.getState();
+    const result = job.returnvalue;
+    const failedReason = job.failedReason;
+    return res.json({ jobId, state, result, failedReason });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 export async function postFullVideo(req, res) {
   let activeVideoId = null;
   try {
     await assertCanGenerateVideo(req.user.id);
-    const { videoId, niche, topic } = req.body;
+    const {
+      videoId,
+      niche,
+      topic,
+      useOptimizedHook,
+      autoTrendTopic,
+      optimizeFromVideoId,
+    } = req.body;
 
     let video;
     if (videoId) {
@@ -43,57 +68,42 @@ export async function postFullVideo(req, res) {
     }
     activeVideoId = video.id;
 
-    video.status = 'script';
+    if (topic !== undefined) video.topic = topic;
+    video.useOptimizedHook = !!useOptimizedHook;
+    video.autoTrendTopic = !!autoTrendTopic;
     video.errorMessage = null;
     await video.save();
 
-    const script = await generateScript(video.niche, video.topic || topic || '');
-    video.hook = script.hook;
-    video.body = script.body;
-    video.ending = script.ending;
-    video.fullScript = `${script.hook}\n\n${script.body}\n\n${script.ending}`;
-    await video.save();
+    startVideoWorker();
 
-    video.status = 'voice';
-    await video.save();
-    const audioPath = await synthesizeVoice(video.fullScript, `${video.id}.mp3`);
-    video.audioPath = audioPath;
+    const payload = {
+      videoId: String(video.id),
+      userId: String(req.user.id),
+      topic: video.topic,
+      useOptimizedHook: video.useOptimizedHook,
+      autoTrendTopic: video.autoTrendTopic,
+      optimizeFromVideoId: optimizeFromVideoId || null,
+    };
 
-    video.status = 'images';
-    await video.save();
-    const scenes = await generateScenes(video.niche, video.fullScript, 5);
-    video.scenes = scenes.map((s) => ({ image: s.image, duration: s.duration }));
+    const jobId = await enqueueVideoGeneration(payload);
 
-    const audioDur = await estimateAudioDuration(audioPath);
-    const subPath = await buildSubtitlesFromScript(
-      { hook: video.hook, body: video.body, ending: video.ending },
-      Math.max(audioDur, 8),
-      String(video.id)
-    );
-    video.subtitlesPath = subPath;
+    if (jobId) {
+      video.status = 'queued';
+      video.jobId = jobId;
+      await video.save();
+      pipelineLog(video.id, 'api', 'accepted (queued)', { jobId });
+      return res.status(202).json({
+        videoId: video.id,
+        status: 'queued',
+        jobId,
+        pollUrl: `/api/video/job/${jobId}`,
+        message: 'Video generation queued. Poll pollUrl until state is completed.',
+      });
+    }
 
-    video.status = 'rendering';
-    await video.save();
-
-    const out = await buildVerticalVideo({
-      imagePaths: video.scenes.map((s) => s.image),
-      durations: video.scenes.map((s) => s.duration),
-      audioPath,
-      subtitlesPath: subPath,
-      outputBasename: String(video.id),
-    });
-
-    video.outputPath = out;
-    video.status = 'ready';
-    await video.save();
-    await incrementUsage(req.user.id);
-
-    return res.json({
-      videoId: video.id,
-      status: video.status,
-      outputUrl: `/uploads/videos/${path.basename(out)}`,
-      script,
-    });
+    pipelineLog(video.id, 'api', 'running inline (no Redis)');
+    const result = await runVideoPipeline(payload);
+    return res.json(result);
   } catch (e) {
     if (e.code === 'LIMIT') {
       return res.status(402).json({ error: e.message, code: 'LIMIT' });
@@ -104,10 +114,4 @@ export async function postFullVideo(req, res) {
     }
     return res.status(500).json({ error: e.message });
   }
-}
-
-async function estimateAudioDuration(audioPath) {
-  const st = await fs.stat(audioPath).catch(() => null);
-  if (!st || st.size === 0) return 45;
-  return 45;
 }

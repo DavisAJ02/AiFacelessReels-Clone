@@ -13,6 +13,7 @@ import { connectDb } from './config/db.js';
 import { createRouter } from './routes/index.js';
 import { configurePassport } from './controllers/authController.js';
 import { stripeWebhook } from './controllers/stripeController.js';
+import { startVideoWorker } from './queue/videoQueue.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +55,7 @@ app.use((err, _req, res, _next) => {
 
 async function main() {
   await connectDb();
+  startVideoWorker();
   app.listen(PORT, () => {
     console.log(`Hermiora server listening on http://localhost:${PORT}`);
   });

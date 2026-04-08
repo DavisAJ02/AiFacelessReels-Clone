@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { register, login, configurePassport, googleCallback } from '../controllers/authController.js';
 import { postScript } from '../controllers/aiController.js';
 import { postVoice } from '../controllers/voiceController.js';
-import { createVideoDraft, postFullVideo } from '../controllers/videoController.js';
+import { createVideoDraft, postFullVideo, getVideoJobStatus } from '../controllers/videoController.js';
 import { listVideos } from './videoList.js';
 import { postSchedule } from '../controllers/postingController.js';
 import { getAnalytics, patchAnalytics, getTrends } from '../controllers/analyticsController.js';
@@ -59,6 +59,7 @@ export function createRouter() {
   router.post('/voice', requireAuth, postVoice);
   router.post('/video/draft', requireAuth, createVideoDraft);
   router.post('/video', requireAuth, postFullVideo);
+  router.get('/video/job/:jobId', requireAuth, getVideoJobStatus);
   router.get('/videos', requireAuth, listVideos);
   router.post('/post', requireAuth, postSchedule);
 

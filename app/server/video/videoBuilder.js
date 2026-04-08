@@ -2,9 +2,13 @@ import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { pipelineLog } from '../services/pipelineLog.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIDEOS_DIR = path.join(__dirname, '..', 'uploads', 'videos');
+
+const MAX_SCENE_SEC = 2;
+const FPS = 25;
 
 function ffmpegBin() {
   return process.env.FFMPEG_PATH || 'ffmpeg';
@@ -25,13 +29,36 @@ function runFfmpeg(args) {
   });
 }
 
+function buildZoomPanFilter(d, index, seed) {
+  const frames = Math.max(1, Math.round(Math.min(d, MAX_SCENE_SEC) * FPS));
+  const rng = (Math.sin((index + 1) * 12.9898 + seed) + 1) / 2;
+  const zMax = 1.08 + rng * 0.12;
+  const zMin = 1;
+  const zoomIn = index % 2 === 0;
+  const zExpr = zoomIn
+    ? `min(zoom+${((zMax - zMin) / frames).toFixed(6)},${zMax.toFixed(4)})`
+    : `max(zoom-${((zMax - zMin) / frames).toFixed(6)},${zMin.toFixed(4)})`;
+  const startZ = zoomIn ? zMin : zMax;
+  const panAmpX = 28 + Math.floor(rng * 22);
+  const panAmpY = 20 + Math.floor((1 - rng) * 18);
+  const phase = (index * 1.7 + seed).toFixed(3);
+
+  return [
+    'scale=1080:1920:force_original_aspect_ratio=increase',
+    'crop=1080:1920',
+    `zoompan=z='${zExpr}':x='iw/2-(iw/zoom/2)+${panAmpX}*sin(on/28+${phase})':y='ih/2-(ih/zoom/2)+${panAmpY}*cos(on/22+${phase})':d=${frames}:s=1080x1920:fps=${FPS}:zoom=${startZ}`,
+    'format=yuv420p',
+  ].join(',');
+}
+
 /**
  * @param {object} opts
  * @param {string[]} opts.imagePaths
- * @param {number[]} opts.durations - per image seconds
+ * @param {number[]} opts.durations - per image seconds (capped at 2s when rhythm=fast)
  * @param {string} opts.audioPath
  * @param {string} [opts.subtitlesPath] - .ass file
  * @param {string} opts.outputBasename
+ * @param {string} [opts.rhythm] - fast | default
  * @returns {Promise<string>} path to output mp4
  */
 export async function buildVerticalVideo(opts) {
@@ -45,27 +72,41 @@ export async function buildVerticalVideo(opts) {
   const audioStat = await fs.stat(audioPath).catch(() => null);
   const audioExists = audioStat && audioStat.size > 0;
 
-  let targetDuration = durations.reduce((a, b) => a + b, 0);
+  let targetDuration = durations.reduce((a, b) => a + Math.min(Number(b) || 0, MAX_SCENE_SEC), 0);
   if (audioExists) {
     const dur = await probeDuration(audioPath);
     if (dur > 0.5) targetDuration = dur;
   }
 
-  const per = Math.max(targetDuration / imagePaths.length, 1.2);
-  const effDurations = imagePaths.map((_, i) => Number(durations[i]) || per);
-
+  const fast = opts.rhythm !== 'default';
+  const seed = Date.now() % 1000;
   const segmentPaths = [];
+
+  let allocated = 0;
+  const capped = imagePaths.map((_, i) => {
+    const raw = Number(durations[i]);
+    const d = fast ? Math.min(raw || MAX_SCENE_SEC, MAX_SCENE_SEC) : Math.min(raw || 3, MAX_SCENE_SEC);
+    return d;
+  });
+
+  const sumCap = capped.reduce((a, b) => a + b, 0);
+  const scale = audioExists && targetDuration > sumCap + 0.5 ? targetDuration / sumCap : 1;
+
   for (let i = 0; i < imagePaths.length; i += 1) {
+    let d = capped[i] * scale;
+    if (fast) d = Math.min(d, MAX_SCENE_SEC);
+    d = Math.max(0.35, d);
+
+    if (audioExists && i === imagePaths.length - 1) {
+      const remaining = Math.max(0.35, targetDuration - allocated);
+      d = Math.min(Math.max(d, remaining), MAX_SCENE_SEC);
+    }
+    allocated += d;
+
     const segPath = path.join(VIDEOS_DIR, `${base}_seg_${i}.mp4`);
-    const d = effDurations[i];
-    const zmax = 1.05 + (i % 3) * 0.04;
-    const frames = Math.max(1, Math.round(d * 25));
-    const vf = [
-      'scale=1080:1920:force_original_aspect_ratio=increase',
-      'crop=1080:1920',
-      `zoompan=z='min(zoom+0.002,${zmax})':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=25`,
-      'format=yuv420p',
-    ].join(',');
+    const vf = buildZoomPanFilter(d, i, seed);
+
+    pipelineLog(base, 'ffmpeg', `segment ${i + 1}/${imagePaths.length}`, { durationSec: d.toFixed(2) });
     await runFfmpeg([
       '-y',
       '-loop',
