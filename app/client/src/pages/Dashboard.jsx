@@ -126,6 +126,9 @@ export default function Dashboard() {
               {v.completionRate != null && (
                 <span className="text-slate-400"> · completion {formatCompletion(v.completionRate)}</span>
               )}
+              {v.viralScore != null && (
+                <span className="text-slate-400"> · viral {Number(v.viralScore).toFixed(2)}</span>
+              )}
             </p>
             {v.outputUrl && v.status === 'ready' && (
               <a

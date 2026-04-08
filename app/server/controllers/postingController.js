@@ -18,6 +18,7 @@ export async function postSchedule(req, res) {
         videoPath: video.outputPath,
         caption: [video.hook, video.topic].filter(Boolean).join(' — '),
         scheduleAt: when,
+        userId: req.user.id,
       });
       results.push(r);
     }

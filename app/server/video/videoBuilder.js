@@ -7,7 +7,7 @@ import { pipelineLog } from '../services/pipelineLog.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VIDEOS_DIR = path.join(__dirname, '..', 'uploads', 'videos');
 
-const MAX_SCENE_SEC = 2;
+const DEFAULT_MAX_SCENE_SEC = 2;
 const FPS = 25;
 
 function ffmpegBin() {
@@ -29,10 +29,21 @@ function runFfmpeg(args) {
   });
 }
 
-function buildZoomPanFilter(d, index, seed) {
-  const frames = Math.max(1, Math.round(Math.min(d, MAX_SCENE_SEC) * FPS));
+/**
+ * @param {number} d
+ * @param {number} index
+ * @param {number} seed
+ * @param {{ maxSceneSec?: number, zoomBoost?: number }} [motion]
+ */
+function buildZoomPanFilter(d, index, seed, motion = {}) {
+  const cap =
+    typeof motion.maxSceneSec === 'number' && motion.maxSceneSec > 0
+      ? motion.maxSceneSec
+      : DEFAULT_MAX_SCENE_SEC;
+  const zoomBoost = Number(motion.zoomBoost) || 0;
+  const frames = Math.max(1, Math.round(Math.min(d, cap) * FPS));
   const rng = (Math.sin((index + 1) * 12.9898 + seed) + 1) / 2;
-  const zMax = 1.08 + rng * 0.12;
+  const zMax = 1.08 + rng * 0.12 + zoomBoost;
   const zMin = 1;
   const zoomIn = index % 2 === 0;
   const zExpr = zoomIn
@@ -59,6 +70,8 @@ function buildZoomPanFilter(d, index, seed) {
  * @param {string} [opts.subtitlesPath] - .ass file
  * @param {string} opts.outputBasename
  * @param {string} [opts.rhythm] - fast | default
+ * @param {number} [opts.maxSceneSec] - override max seconds per scene
+ * @param {number} [opts.zoomBoost] - extra zoom intensity from style preset
  * @returns {Promise<string>} path to output mp4
  */
 export async function buildVerticalVideo(opts) {
@@ -72,7 +85,11 @@ export async function buildVerticalVideo(opts) {
   const audioStat = await fs.stat(audioPath).catch(() => null);
   const audioExists = audioStat && audioStat.size > 0;
 
-  let targetDuration = durations.reduce((a, b) => a + Math.min(Number(b) || 0, MAX_SCENE_SEC), 0);
+  const maxSceneCap =
+    typeof opts.maxSceneSec === 'number' && opts.maxSceneSec > 0 ? opts.maxSceneSec : DEFAULT_MAX_SCENE_SEC;
+  const motionOpts = { maxSceneSec: maxSceneCap, zoomBoost: opts.zoomBoost };
+
+  let targetDuration = durations.reduce((a, b) => a + Math.min(Number(b) || 0, maxSceneCap), 0);
   if (audioExists) {
     const dur = await probeDuration(audioPath);
     if (dur > 0.5) targetDuration = dur;
@@ -85,7 +102,9 @@ export async function buildVerticalVideo(opts) {
   let allocated = 0;
   const capped = imagePaths.map((_, i) => {
     const raw = Number(durations[i]);
-    const d = fast ? Math.min(raw || MAX_SCENE_SEC, MAX_SCENE_SEC) : Math.min(raw || 3, MAX_SCENE_SEC);
+    const d = fast
+      ? Math.min(raw || maxSceneCap, maxSceneCap)
+      : Math.min(raw || 3, maxSceneCap);
     return d;
   });
 
@@ -94,17 +113,17 @@ export async function buildVerticalVideo(opts) {
 
   for (let i = 0; i < imagePaths.length; i += 1) {
     let d = capped[i] * scale;
-    if (fast) d = Math.min(d, MAX_SCENE_SEC);
+    if (fast) d = Math.min(d, maxSceneCap);
     d = Math.max(0.35, d);
 
     if (audioExists && i === imagePaths.length - 1) {
       const remaining = Math.max(0.35, targetDuration - allocated);
-      d = Math.min(Math.max(d, remaining), MAX_SCENE_SEC);
+      d = Math.min(Math.max(d, remaining), maxSceneCap);
     }
     allocated += d;
 
     const segPath = path.join(VIDEOS_DIR, `${base}_seg_${i}.mp4`);
-    const vf = buildZoomPanFilter(d, i, seed);
+    const vf = buildZoomPanFilter(d, i, seed, motionOpts);
 
     pipelineLog(base, 'ffmpeg', `segment ${i + 1}/${imagePaths.length}`, { durationSec: d.toFixed(2) });
     await runFfmpeg([

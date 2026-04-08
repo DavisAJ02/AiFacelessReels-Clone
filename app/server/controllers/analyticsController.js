@@ -30,6 +30,7 @@ export async function patchAnalytics(req, res) {
       hookType,
       captionStyle,
       videoStyle,
+      captionEngagementScore,
     } = req.body;
     const owned = await Video.exists({ _id: videoId, userId: req.user.id });
     if (!owned) return res.status(404).json({ error: 'Video not found' });
@@ -42,6 +43,7 @@ export async function patchAnalytics(req, res) {
       hookType,
       captionStyle,
       videoStyle,
+      captionEngagementScore,
     });
     return res.json(row);
   } catch (e) {

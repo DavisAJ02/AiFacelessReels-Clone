@@ -56,6 +56,8 @@ export async function postFullVideo(req, res) {
       useOptimizedHook,
       autoTrendTopic,
       optimizeFromVideoId,
+      stylePreset,
+      scrollStopper,
     } = req.body;
 
     let video;
@@ -64,13 +66,22 @@ export async function postFullVideo(req, res) {
       if (!video) return res.status(404).json({ error: 'Video not found' });
     } else {
       const n = niche || 'facts';
-      video = await Video.create({ userId: req.user.id, niche: n, topic: topic || '', status: 'draft' });
+      video = await Video.create({
+        userId: req.user.id,
+        niche: n,
+        topic: topic || '',
+        status: 'draft',
+        stylePreset: stylePreset || 'aggressive_viral',
+        scrollStopper: scrollStopper !== undefined ? !!scrollStopper : true,
+      });
     }
     activeVideoId = video.id;
 
     if (topic !== undefined) video.topic = topic;
     video.useOptimizedHook = !!useOptimizedHook;
     video.autoTrendTopic = !!autoTrendTopic;
+    if (stylePreset) video.stylePreset = stylePreset;
+    if (scrollStopper !== undefined) video.scrollStopper = !!scrollStopper;
     video.errorMessage = null;
     await video.save();
 
@@ -83,6 +94,8 @@ export async function postFullVideo(req, res) {
       useOptimizedHook: video.useOptimizedHook,
       autoTrendTopic: video.autoTrendTopic,
       optimizeFromVideoId: optimizeFromVideoId || null,
+      stylePreset: video.stylePreset,
+      scrollStopper: video.scrollStopper,
     };
 
     const jobId = await enqueueVideoGeneration(payload);

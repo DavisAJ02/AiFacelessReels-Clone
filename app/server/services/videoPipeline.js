@@ -1,9 +1,12 @@
 import path from 'path';
+import fs from 'fs/promises';
 import { generateScript } from '../ai/scriptGenerator.js';
 import { synthesizeVoice } from '../ai/voiceGenerator.js';
 import { generateScenes } from '../video/imageGenerator.js';
 import { buildSubtitlesFromScript } from '../video/subtitleEngine.js';
 import { buildVerticalVideo } from '../video/videoBuilder.js';
+import { applyScrollStopper } from '../video/scrollStopper.js';
+import { getStylePreset } from '../video/stylePresets.js';
 import { Video } from '../models/Video.js';
 import { incrementUsage } from './usage.js';
 import { afterVideoPipelineAnalytics } from '../analytics/performanceTracker.js';
@@ -35,7 +38,6 @@ async function probeAudioDuration(audioPath) {
 }
 
 /**
- * Full async pipeline for one video. Used by HTTP (sync mode) and BullMQ worker.
  * @param {{ videoId: string, userId: string, topic?: string, useOptimizedHook?: boolean, autoTrendTopic?: boolean, optimizeFromVideoId?: string }} opts
  */
 export async function runVideoPipeline(opts) {
@@ -51,11 +53,19 @@ export async function runVideoPipeline(opts) {
   const autoTrendTopic = opts.autoTrendTopic ?? video.autoTrendTopic;
   const optimizeFromVideoId = opts.optimizeFromVideoId ?? null;
 
+  const preset = getStylePreset(opts.stylePreset || video.stylePreset);
+
   video.status = 'script';
   video.errorMessage = null;
   video.selectedTopic = topic || '';
+  if (opts.stylePreset) video.stylePreset = opts.stylePreset;
   await video.save();
-  pipelineLog(videoId, 'script', 'start', { niche: video.niche, autoTrendTopic, useOptimizedHook });
+  pipelineLog(videoId, 'script', 'start', {
+    niche: video.niche,
+    autoTrendTopic,
+    useOptimizedHook,
+    stylePreset: preset.id,
+  });
 
   const script = await generateScript(video.niche, topic || '', {
     userId,
@@ -104,7 +114,7 @@ export async function runVideoPipeline(opts) {
     { hook: video.hook, body: video.body, ending: video.ending },
     Math.max(audioDur, 8),
     String(video.id),
-    { style: 'v2_pop' }
+    { style: preset.captionStyle }
   );
   video.subtitlesPath = subPath;
   await video.save();
@@ -113,14 +123,47 @@ export async function runVideoPipeline(opts) {
   video.status = 'rendering';
   await video.save();
   pipelineLog(videoId, 'render', 'start');
-  const out = await buildVerticalVideo({
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const videosDir = path.join(__dirname, '..', 'uploads', 'videos');
+  const finalOutPath = path.join(videosDir, `${String(video.id)}.mp4`);
+
+  const builtPath = await buildVerticalVideo({
     imagePaths: video.scenes.map((s) => s.image),
     durations: video.scenes.map((s) => s.duration),
     audioPath,
     subtitlesPath: subPath,
-    outputBasename: String(video.id),
-    rhythm: 'fast',
+    outputBasename: `${String(video.id)}_body`,
+    rhythm: preset.rhythm,
+    maxSceneSec: preset.maxSceneSec,
+    zoomBoost: preset.zoomBoost,
   });
+
+  let out = builtPath;
+  const scrollOn = opts.scrollStopper !== undefined ? opts.scrollStopper : video.scrollStopper !== false;
+  if (scrollOn) {
+    out = await applyScrollStopper(
+      {
+        enabled: true,
+        baseName: String(video.id),
+        hookText: video.hook,
+        durationSec: 0.9,
+      },
+      builtPath,
+      finalOutPath
+    );
+    if (out === builtPath) {
+      await fs.copyFile(builtPath, finalOutPath).catch(() => {});
+      out = finalOutPath;
+    }
+    await fs.unlink(builtPath).catch(() => {});
+  } else {
+    await fs.rename(builtPath, finalOutPath).catch(async () => {
+      await fs.copyFile(builtPath, finalOutPath);
+      await fs.unlink(builtPath);
+    });
+    out = finalOutPath;
+  }
 
   video.outputPath = out;
   video.status = 'ready';
@@ -128,7 +171,9 @@ export async function runVideoPipeline(opts) {
   pipelineLog(videoId, 'render', 'done', { file: path.basename(out) });
 
   await incrementUsage(userId);
-  await afterVideoPipelineAnalytics(video).catch((e) => pipelineLog(videoId, 'analytics', `post-hook warn: ${e.message}`));
+  await afterVideoPipelineAnalytics(video, { stylePreset: preset.id }).catch((e) =>
+    pipelineLog(videoId, 'analytics', `post-hook warn: ${e.message}`)
+  );
 
   return {
     videoId: video.id,
@@ -136,5 +181,6 @@ export async function runVideoPipeline(opts) {
     outputUrl: `/uploads/videos/${path.basename(out)}`,
     script,
     resolvedTopic: script.resolvedTopic,
+    stylePreset: preset.id,
   };
 }

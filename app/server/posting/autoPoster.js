@@ -1,42 +1,74 @@
 /**
  * Social upload layer: explicit platform functions + simulation when credentials are missing.
- * Wire official SDKs / REST inside each function when keys are present.
+ * TikTok: supports multiple accounts via TIKTOK_ACCESS_TOKENS (comma-separated) with rotation per user.
  */
 
-function hasCredential(platform) {
-  const token = process.env[`${platform.toUpperCase()}_ACCESS_TOKEN`];
-  return Boolean(token);
+function parseTikTokTokens() {
+  const multi = process.env.TIKTOK_ACCESS_TOKENS;
+  if (multi?.trim()) {
+    return multi
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+  const single = process.env.TIKTOK_ACCESS_TOKEN;
+  return single ? [single] : [];
+}
+
+const tiktokCursorByUser = new Map();
+
+function pickTikTokToken(userId) {
+  const tokens = parseTikTokTokens();
+  if (!tokens.length) return null;
+  if (!userId) return tokens[0];
+  const key = String(userId);
+  const idx = tiktokCursorByUser.get(key) || 0;
+  const token = tokens[idx % tokens.length];
+  tiktokCursorByUser.set(key, idx + 1);
+  return token;
+}
+
+function hasInstagramCredential() {
+  return Boolean(process.env.INSTAGRAM_ACCESS_TOKEN);
+}
+
+function hasYouTubeCredential() {
+  return Boolean(process.env.YOUTUBE_ACCESS_TOKEN);
 }
 
 /**
  * @param {string} videoPath - local file path
  * @param {string} caption
- * @returns {Promise<{ ok: boolean, simulated?: boolean, externalId?: string, message?: string }>}
+ * @param {{ userId?: string }} [ctx]
  */
-export async function postToTikTok(videoPath, caption = '') {
-  if (!hasCredential('tiktok')) {
+export async function postToTikTok(videoPath, caption = '', ctx = {}) {
+  const token = pickTikTokToken(ctx.userId);
+  if (!token) {
     return {
       ok: true,
       simulated: true,
-      message: 'TikTok: set TIKTOK_ACCESS_TOKEN and implement Content Posting API upload flow.',
+      message:
+        'TikTok: set TIKTOK_ACCESS_TOKEN or TIKTOK_ACCESS_TOKENS (comma-separated) and implement Content Posting API.',
       videoPath,
       caption,
+      accountIndex: null,
     };
   }
   return {
     ok: false,
     simulated: false,
     message: 'TikTok API integration stub: implement multipart upload + publish using official docs.',
+    rotatedAccount: true,
   };
 }
 
 /**
  * @param {string} videoPath
  * @param {string} caption
- * @param {{ igUserId?: string }} [opts] - Instagram Business user id
+ * @param {{ igUserId?: string }} [opts]
  */
 export async function postToInstagram(videoPath, caption = '', opts = {}) {
-  if (!hasCredential('instagram')) {
+  if (!hasInstagramCredential()) {
     return {
       ok: true,
       simulated: true,
@@ -59,7 +91,7 @@ export async function postToInstagram(videoPath, caption = '', opts = {}) {
  * @param {string} [description]
  */
 export async function postToYouTube(videoPath, title, description = '') {
-  if (!hasCredential('youtube')) {
+  if (!hasYouTubeCredential()) {
     return {
       ok: true,
       simulated: true,
@@ -77,7 +109,7 @@ export async function postToYouTube(videoPath, title, description = '') {
 }
 
 const PLATFORM_FN = {
-  tiktok: (path, cap) => postToTikTok(path, cap),
+  tiktok: (path, cap, ctx) => postToTikTok(path, cap, ctx),
   instagram: (path, cap) => postToInstagram(path, cap),
   youtube: (path, cap) => {
     const title = cap.split('\n')[0]?.slice(0, 95) || 'Short';
@@ -92,15 +124,17 @@ const PLATFORM_FN = {
  * @param {string} opts.videoPath
  * @param {string} [opts.caption]
  * @param {Date} [opts.scheduleAt]
+ * @param {string} [opts.userId] - for TikTok account rotation
  */
 export async function scheduleOrUpload(opts) {
-  const { platform, videoPath, caption = '', scheduleAt } = opts;
+  const { platform, videoPath, caption = '', scheduleAt, userId } = opts;
   const fn = PLATFORM_FN[platform];
   if (!fn) {
     return { ok: false, simulated: true, platform, message: 'Unknown platform', videoPath, caption };
   }
 
-  const result = await fn(videoPath, caption);
+  const ctx = platform === 'tiktok' ? { userId } : {};
+  const result = await fn(videoPath, caption, ctx);
   return {
     ...result,
     platform,

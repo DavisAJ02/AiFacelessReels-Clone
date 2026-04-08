@@ -107,14 +107,26 @@ export async function buildSubtitlesFromScript(scriptParts, totalDurationSec, ba
   const full = [scriptParts.hook, scriptParts.body, scriptParts.ending].filter(Boolean).join(' ');
   const words = full.split(/\s+/).filter(Boolean);
 
-  const useV2 = options.style !== 'legacy';
-  const chunks = useV2
-    ? wordLevelEvents(words, totalDurationSec)
-    : legacyChunks(full, totalDurationSec).map((c) => ({
-        start: c.start,
-        end: c.end,
-        text: `{\\fs64\\b1}${escapeAssWord(c.text)}{\\r}`,
-      }));
+  const style = options.style || 'v2_pop';
+  const useV2 = style === 'v2_pop';
+  const useMinimal = style === 'minimal';
+
+  let chunks;
+  if (useMinimal) {
+    chunks = legacyChunks(full, totalDurationSec).map((c) => ({
+      start: c.start,
+      end: c.end,
+      text: `{\\fs56\\b0}${escapeAssWord(c.text)}{\\r}`,
+    }));
+  } else if (useV2) {
+    chunks = wordLevelEvents(words, totalDurationSec);
+  } else {
+    chunks = legacyChunks(full, totalDurationSec).map((c) => ({
+      start: c.start,
+      end: c.end,
+      text: `{\\fs64\\b1}${escapeAssWord(c.text)}{\\r}`,
+    }));
+  }
 
   const events = chunks
     .map((c) => {
@@ -130,7 +142,11 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,64,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,3,5,40,40,120,1
+Style: Default,Arial,${
+    useMinimal ? 56 : 64
+  },&H00FFFFFF,&H000000FF,&H00000000,&H80000000,${useMinimal ? 0 : -1},0,0,0,100,100,0,0,1,${
+    useMinimal ? 3 : 5
+  },${useMinimal ? 2 : 3},5,40,40,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

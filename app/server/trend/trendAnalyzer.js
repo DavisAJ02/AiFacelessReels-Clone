@@ -114,8 +114,10 @@ export async function evaluateAndMaybeRegenerateHook(videoId, opts = {}) {
   });
 
   const poor = opts.forceRegen || (views > 40 && completion < 0.4);
-  const { variations } = optimizeHook([video.hook], [{ hook: video.hook, completionRate: completion, views }]);
-  const suggestedHook = variations[0];
+  const { scoredVariations, variations } = optimizeHook([video.hook], [
+    { hook: video.hook, completionRate: completion, views },
+  ]);
+  const suggestedHook = scoredVariations[0]?.text || variations[0];
 
   if (poor && !video.hookRegenerated) {
     return { regenerate: true, reason: opts.forceRegen ? 'forced' : 'low_completion', score, suggestedHook };

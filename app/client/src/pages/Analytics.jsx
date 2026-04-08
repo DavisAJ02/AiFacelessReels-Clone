@@ -45,11 +45,15 @@ export default function Analytics() {
       {error && <p className="text-red-400 mb-6">{error}</p>}
 
       {data?.summary && (
-        <div className="grid sm:grid-cols-3 gap-4 mb-10">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           {[
             { label: 'Total views', value: data.summary.views },
             { label: 'Watch time (s)', value: data.summary.watchTimeSeconds },
             { label: 'Avg completion', value: `${Math.round((data.summary.avgCompletion || 0) * 100)}%` },
+            {
+              label: 'Avg viral score',
+              value: data.summary.avgViralScore != null ? data.summary.avgViralScore.toFixed(2) : '—',
+            },
           ].map((c, i) => (
             <motion.div
               key={c.label}
@@ -90,6 +94,7 @@ export default function Analytics() {
               </div>
               <div className="text-xs text-slate-400 sm:text-right">
                 views {row.views} · completion {Math.round((row.completionRate || 0) * 100)}%
+                {row.viralScore != null && ` · viral ${Number(row.viralScore).toFixed(2)}`}
               </div>
             </li>
           ))}

@@ -11,6 +11,7 @@ export async function listVideos(req, res) {
     const ids = items.map((v) => v._id);
     const stats = await Analytics.find({ videoId: { $in: ids } }).lean();
     const completionByVideo = new Map(stats.map((s) => [String(s.videoId), s.completionRate ?? 0]));
+    const viralByVideo = new Map(stats.map((s) => [String(s.videoId), s.viralScore ?? null]));
 
     return res.json(
       items.map((v) => ({
@@ -22,6 +23,7 @@ export async function listVideos(req, res) {
         jobId: v.jobId,
         createdAt: v.createdAt,
         completionRate: completionByVideo.get(String(v._id)) ?? null,
+        viralScore: viralByVideo.get(String(v._id)) ?? null,
         outputUrl: v.outputPath ? `/uploads/videos/${path.basename(v.outputPath)}` : null,
       }))
     );

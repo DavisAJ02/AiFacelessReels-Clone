@@ -11,6 +11,8 @@ const analyticsSchema = new mongoose.Schema(
     captionStyle: { type: String, default: 'v2_pop' },
     videoStyle: { type: String, default: 'rhythm_v2' },
     patternTier: { type: String, enum: ['high-performing', 'weak', 'neutral'], default: 'neutral' },
+    viralScore: { type: Number, default: 0 },
+    captionEngagementScore: { type: Number, default: 0 },
     lastSyncedAt: { type: Date, default: null },
   },
   { timestamps: true }

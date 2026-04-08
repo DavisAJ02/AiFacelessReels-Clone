@@ -9,8 +9,10 @@ import { postVoice } from '../controllers/voiceController.js';
 import { createVideoDraft, postFullVideo, getVideoJobStatus } from '../controllers/videoController.js';
 import { listVideos } from './videoList.js';
 import { postSchedule } from '../controllers/postingController.js';
+import { postRepostOne, postRepostSweep } from '../controllers/repostController.js';
 import { getAnalytics, patchAnalytics, getTrends } from '../controllers/analyticsController.js';
 import { createCheckoutSession, stripeWebhook } from '../controllers/stripeController.js';
+import { getStylePresets } from '../controllers/stylePresetController.js';
 import { User } from '../models/User.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,9 +61,12 @@ export function createRouter() {
   router.post('/voice', requireAuth, postVoice);
   router.post('/video/draft', requireAuth, createVideoDraft);
   router.post('/video', requireAuth, postFullVideo);
+  router.get('/video/presets', requireAuth, getStylePresets);
   router.get('/video/job/:jobId', requireAuth, getVideoJobStatus);
   router.get('/videos', requireAuth, listVideos);
   router.post('/post', requireAuth, postSchedule);
+  router.post('/repost/sweep', requireAuth, postRepostSweep);
+  router.post('/repost/one', requireAuth, postRepostOne);
 
   router.get('/analytics', requireAuth, getAnalytics);
   router.patch('/analytics', requireAuth, patchAnalytics);

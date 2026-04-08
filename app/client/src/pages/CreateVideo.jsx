@@ -25,6 +25,9 @@ async function pollJobUntilDone(pollUrl, onProgress) {
 export default function CreateVideo() {
   const [niche, setNiche] = useState('motivation')
   const [topic, setTopic] = useState('')
+  const [stylePreset, setStylePreset] = useState('aggressive_viral')
+  const [scrollStopper, setScrollStopper] = useState(true)
+  const [presetOptions, setPresetOptions] = useState([])
   const [useOptimizedHook, setUseOptimizedHook] = useState(false)
   const [autoTrendTopic, setAutoTrendTopic] = useState(false)
   const [autoPost, setAutoPost] = useState(false)
@@ -39,13 +42,26 @@ export default function CreateVideo() {
     setPlatforms(['tiktok', 'instagram', 'youtube'])
   }, [autoPost])
 
+  useEffect(() => {
+    let cancelled = false
+    api
+      .get('/video/presets')
+      .then(({ data }) => {
+        if (!cancelled && data.presets?.length) setPresetOptions(data.presets)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   async function runPipeline() {
     setError('')
     setResult(null)
     setLoading(true)
     setStep('Starting generation…')
     try {
-      const body = { niche, topic, useOptimizedHook, autoTrendTopic }
+      const body = { niche, topic, useOptimizedHook, autoTrendTopic, stylePreset, scrollStopper }
       const { data } = await api.post('/video', body)
 
       let final = data
@@ -84,6 +100,38 @@ export default function CreateVideo() {
       </p>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-6">
+        <div>
+          <label className="block text-sm text-slate-300 mb-2">Video style preset</label>
+          <select
+            value={stylePreset}
+            onChange={(e) => setStylePreset(e.target.value)}
+            className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            {(presetOptions.length
+              ? presetOptions
+              : [
+                  { id: 'aggressive_viral', maxSceneSec: 1.5 },
+                  { id: 'cinematic_story', maxSceneSec: 2.5 },
+                  { id: 'minimal_facts', maxSceneSec: 2 },
+                ]
+            ).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.id.replace(/_/g, ' ')} · ~{p.maxSceneSec}s cuts
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={scrollStopper}
+            onChange={(e) => setScrollStopper(e.target.checked)}
+            className="rounded border-white/20 bg-black/40 text-violet-600 focus:ring-violet-500"
+          />
+          <span className="text-sm text-slate-300">Scroll-stopper intro (bold hook card + optional SFX via env)</span>
+        </label>
+
         <div>
           <label className="block text-sm text-slate-300 mb-2">Niche</label>
           <select

@@ -44,6 +44,11 @@ const videoSchema = new mongoose.Schema(
     autoTrendTopic: { type: Boolean, default: false },
     selectedTopic: { type: String, default: '' },
     jobId: { type: String, default: null },
+    stylePreset: { type: String, default: 'aggressive_viral' },
+    scrollStopper: { type: Boolean, default: true },
+    scrollStopperSfx: { type: String, default: null },
+    lastRepostAt: { type: Date, default: null },
+    repostCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
