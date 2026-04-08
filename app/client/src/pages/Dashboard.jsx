@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import api from '../api/client'
+import TikTokConnect from '../components/TikTokConnect'
 
 export default function Dashboard() {
   const [videos, setVideos] = useState([])
@@ -53,6 +54,10 @@ export default function Dashboard() {
         >
           New video
         </Link>
+      </div>
+
+      <div className="mb-8">
+        <TikTokConnect />
       </div>
 
       {trends?.topics?.length > 0 && (

@@ -16,6 +16,7 @@ import { getStylePresets } from '../controllers/stylePresetController.js';
 import { getGrowthInsights, patchBrandIdentity } from '../controllers/growthController.js';
 import { postAbCreate, postAbEvaluate } from '../controllers/abController.js';
 import { User } from '../models/User.js';
+import { getTikTokAuthStart, getTikTokAuthCallback } from '../controllers/tiktokAuthController.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsRoot = path.join(__dirname, '..', 'uploads');
@@ -46,6 +47,9 @@ export function createRouter() {
     res.redirect(`${process.env.CLIENT_URL}/login?error=google`);
   });
 
+  router.get('/auth/tiktok', getTikTokAuthStart);
+  router.get('/auth/tiktok/callback', getTikTokAuthCallback);
+
   router.get('/me', requireAuth, async (req, res) => {
     const user = await User.findById(req.user.id).lean();
     if (!user) return res.status(404).json({ error: 'Not found' });
@@ -57,6 +61,7 @@ export function createRouter() {
       subscriptionStatus: user.subscriptionStatus,
       videosGeneratedThisPeriod: user.videosGeneratedThisPeriod,
       brandIdentity: user.brandIdentity || {},
+      tiktokConnected: Boolean(user.tiktokConnected),
     });
   });
 

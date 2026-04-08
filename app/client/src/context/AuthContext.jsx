@@ -47,17 +47,20 @@ export function AuthProvider({ children }) {
     setAuthToken(null)
   }, [])
 
+  const tiktokConnected = Boolean(user?.tiktokConnected)
+
   const value = useMemo(
     () => ({
       token,
       user,
       loading,
       isAuthenticated: !!token && !!user,
+      tiktokConnected,
       loginWithToken,
       logout,
       refreshUser,
     }),
-    [token, user, loading, loginWithToken, logout, refreshUser],
+    [token, user, loading, tiktokConnected, loginWithToken, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

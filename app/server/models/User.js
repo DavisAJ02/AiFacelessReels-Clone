@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema(
     subscriptionStatus: { type: String, default: null },
     videosGeneratedThisPeriod: { type: Number, default: 0 },
     usagePeriodStart: { type: Date, default: Date.now },
+    tiktokConnected: { type: Boolean, default: false },
+    tiktokConnectedAt: { type: Date, default: null },
     brandIdentity: {
       fontStyle: { type: String, default: 'sans_bold' },
       captionColorTheme: { type: String, default: null },

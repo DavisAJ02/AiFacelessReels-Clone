@@ -5,7 +5,16 @@ import { nextSuggestedPostSlot } from '../posting/smartScheduler.js';
 
 export async function postSchedule(req, res) {
   try {
-    const { videoId, platforms = [], scheduledAt, useSmartSchedule } = req.body;
+    const { videoId, platforms: platformsBody, platform, scheduledAt, useSmartSchedule } = req.body;
+    const platforms =
+      Array.isArray(platformsBody) && platformsBody.length
+        ? platformsBody
+        : platform
+          ? [platform]
+          : [];
+    if (!platforms.length) {
+      return res.status(400).json({ error: 'Provide platforms array or platform string' });
+    }
     const video = await Video.findOne({ _id: videoId, userId: req.user.id });
     if (!video) return res.status(404).json({ error: 'Video not found' });
     if (video.status !== 'ready' || !video.outputPath) {
