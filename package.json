@@ -1,0 +1,12 @@
+{
+  "name": "hermiora-ai",
+  "private": true,
+  "description": "Hermiora AI — faceless video generation SaaS",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix app/server\" \"npm run dev --prefix app/client\"",
+    "install:all": "npm install --prefix app/server && npm install --prefix app/client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
